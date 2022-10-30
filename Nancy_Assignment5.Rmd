@@ -1,0 +1,114 @@
+---
+title: "Nancy_Assignment 5"
+output: html_notebook
+---
+# Q1: Preliminaries
+```{r}
+library(tidyverse)
+library(ggthemes)
+library(rstatix)
+library(ggpubr)
+
+assignment5 = read_csv("assignment5.csv")
+```
+
+# Q2: Subject-level means
+```{r}
+# Mean response accuracy for each subject in each prime condition
+subject_accuracy = assignment5 %>% 
+  group_by(subject, prime_condition) %>% 
+  summarize(mean_accuracy = mean(accuracy))
+
+# Mean RT for each subject in each prime condition
+response_RT = assignment5 %>% 
+  group_by(subject, prime_condition) %>% 
+  summarize(mean_RT = mean(response_RT))
+```
+# Q3: Format of the data
+Both subject_accuracy and response_RT are in long format because there are multiple rows describing prime condition per observation.
+
+# Q4: Long to Wide conversion
+```{r}
+subject_accuracy_wide = subject_accuracy %>% 
+  pivot_wider(names_from = prime_condition, values_from = mean_accuracy)
+```
+
+# Q5: Wide to Long conversion
+```{r}
+subject_accuracy_long = subject_accuracy_wide %>% 
+  pivot_longer(names_to = "prime_condition", cols = 2:5)
+```
+
+# Q6: Interpretation
+subject_accuracy contains the same information in the same format found in subject_accuracy_long.
+
+# Q7: t-test in R
+```{r}
+# Conduct a t test comparing phonological prime condition to semantic prime condition. Assume a 2 tailed t test with unequal variance.
+# paired = subjects participated in all conditions
+# data frame used = subject_accuracy_wide
+
+t.test(subject_accuracy_wide$phonological, subject_accuracy_wide$semantic, var.equal = FALSE, paired = TRUE)
+```
+
+# Q8: t-test interpretation 
+The calculated p value is less than the critical value of .05, indicating that there is a less than 5% chance that the mean accuracies for the phonological prime condition were sampled from the same distribution as the semantic prime condition.
+
+# Q9: t-test manual
+```{r}
+# Calculate the t-test in Q7 manually
+
+# Store difference between the two conditions
+subject_accuracy_wide = subject_accuracy_wide %>% 
+  mutate(acc_diff = phonological - semantic)
+
+x_diff = mean(subject_accuracy_wide$acc_diff)
+s_diff = sd(subject_accuracy_wide$acc_diff)
+n = nrow(subject_accuracy_wide)
+
+t_value = x_diff / (s_diff / sqrt(n))
+```
+
+# Q10: t-test outliers 
+```{r}
+# Un-group data
+subject_accuracy_wide = subject_accuracy_wide %>% ungroup()
+# Visually check for outliers
+hist(subject_accuracy_wide$acc_diff)
+
+outliers = subject_accuracy_wide %>% identify_outliers(acc_diff)
+# Exclude outliers in new dataframe
+new_df = subject_accuracy_wide %>% filter(!subject %in% outliers)
+```
+There was one outlier with a difference of .56 in accuracy.
+
+# Q11: t-test normality
+```{r}
+# Visually check normality
+ggqqplot(subject_accuracy_wide, "acc_diff")
+# Calculate normality
+subject_accuracy_wide %>% shapiro_test(acc_diff)
+```
+The p-value found in the Shapiro test exceeds .05. The normality assumption is satisfied.
+
+# Q12: Overall pattern interpretation 
+```{r}
+# re-perform the t-test with outliers removed
+t.test(new_df$phonological, new_df$semantic, var.equal = FALSE, paired = TRUE)
+```
+There was one outlier which disproportionately increased the t-value and decreased the p-value. However, re-performing the test without the outlier still resulted in a p-value below .05. This indicates that phonological primes result in significantly higher retreival accuracy than semantic primes.
+
+# Q13: Plot RTs
+```{r}
+mean_rt = assignment5 %>% 
+  group_by(prime_condition) %>% 
+  summarise(mean_RT = mean(response_RT)) 
+
+mean_rt %>% 
+  ggplot(aes(x = prime_condition, y = mean_RT)) +
+  geom_col(position = "dodge") + 
+  theme_few() + 
+  labs(x = "prime condition", y = "Mean RT", title = "RT by prime condition")
+```
+Semantic primes produced the slowest RT and unrelated primes produced the fastest RT. Phonological and unrelated conditions produced similar RTs. This indicates that semantic primes slow response times more than phonological, unrelated, or combined primes. 
+
